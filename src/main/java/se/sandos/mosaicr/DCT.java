@@ -299,7 +299,23 @@ public class DCT
      * @param input The Input Pixel Matrix
      * @returns output The DCT Result Matrix
      */
-    public int[][] forwardDCT(char input[][])
+//    public int[][] forwardDCT(char input[][])
+    
+    public int[][][] forwardDCT(int input[])
+    {
+    	int[][] r = forwardDCT(input, 0);
+    	int[][] g = forwardDCT(input, 1);
+    	int[][] b = forwardDCT(input, 2);
+    	
+    	int[][][] res = new int[3][][];
+    	res[0] = r;
+    	res[1] = g;
+    	res[2] = b;
+    	
+    	return res;
+    }
+    
+    public int[][] forwardDCT(int input[], int offset)
     {
         int output[][] = new int[N][N];
         double temp[][] = new double[N][N];
@@ -315,7 +331,18 @@ public class DCT
                 temp[i][j] = 0.0;
                 for (k = 0; k < N; k++)
                 {
-                    temp[i][j] += (((int)(input[i][k]) - 128) * cT[k][j]);
+                	//Fix for interleaved RGB
+                	char pixel = 0;
+					if (offset == 0) {
+						pixel = (char) (input[i * N + k / 3] & 0xff);
+					} else if (offset == 1) {
+						pixel = (char) ((input[i * N + k / 3] & 0xff00) >> 8);
+					} else if (offset == 2) {
+						pixel = (char) ((input[i * N + k / 3] & 0xff0000) >> 16);
+					}
+                	
+                    temp[i][j] += (((int)pixel - 128) * cT[k][j]);
+                    //temp[i][j] += (((int)(input[i][k]) - 128) * cT[k][j]);
                 }
             }
         }

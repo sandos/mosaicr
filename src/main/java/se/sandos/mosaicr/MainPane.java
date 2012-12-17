@@ -20,6 +20,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -28,8 +29,8 @@ import com.esotericsoftware.kryo.io.Output;
 @SuppressWarnings("serial")
 public class MainPane extends JFrame
 {
-    final static int numRows = 11;
-    final static int numCols = 22;
+    final static int numRows = 40;
+    final static int numCols = 54;
 
     static Vector<BufferedImage> images = new Vector<BufferedImage>();
     static Vector<String> names = new Vector<String>();
@@ -37,23 +38,22 @@ public class MainPane extends JFrame
     static int[] foundTiles;
     static Map<String, BufferedImage> tileSourceCache = new HashMap<String, BufferedImage>();
 
+    static Vector<JLabel> icons = new Vector<JLabel>();
+    
     public MainPane()
     {
         setLayout(new GridLayout(numRows, numCols));
         setTitle("Simple example");
-        setSize(300, 200);
+        setSize(400, 300);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
 
-        for (int i = 0; i < images.size(); i++)
+        for (int i = 0; i < numRows*numCols; i++)
         {
-            ImageIcon image = new ImageIcon(images.get(i));
-            add(new JLabel(image));
-            // JLabel label = new JLabel("", image, JLabel.CENTER);
+            ImageIcon image = new ImageIcon();
+            icons.add(new JLabel(image));
+            add(icons.get(icons.size()-1));
         }
-
-        // JPanel panel = new JPanel(new BorderLayout());
-        // add(label, BorderLayout.EAST);
     }
 
     public static int[] loadImage(String url) throws Exception
@@ -65,25 +65,29 @@ public class MainPane extends JFrame
     public static void main(String[] args) throws Exception
     {
         File seri = new File("serialization.bin");
-        File dir = new File("Z:\\projs\\mosaicr");
+//        File dir = new File("Z:\\projs\\mosaicr");
+        File dir = new File("C:\\temp\\mosaicr-bilder\\mosaicr\\");
 
-        File[] listFiles = dir.listFiles(new FilenameFilter() {
+        File[] listFiles = null;
+
+        System.out.println("Listing files");
+        listFiles = dir.listFiles(new FilenameFilter() {
             public boolean accept(File dir, String filename)
             {
-                return filename.endsWith(".png");
+                return filename.endsWith(".png") && (filename.contains("8x8"));
             }
         });
 
         if (!seri.exists())
         {
             System.out.println("Loading tile sources from disk...");
-
             System.out.println("Number of files " + listFiles.length);
 
             tileSources = new int[listFiles.length][];
 
             for (int i = 0; i < listFiles.length; i++)
             {
+            	System.out.println("Loading " + i);
                 tileSources[i] = loadImage(listFiles[i].toString());
                 names.add(listFiles[i].toString());
             }
@@ -96,15 +100,17 @@ public class MainPane extends JFrame
             Output output = new Output(new FileOutputStream("serialization.bin"));
             kryo.writeObject(output, tileSources);
             output.close();
+            
         }
         else
         {
+            Kryo kryo = new Kryo();
+            
             for (int i = 0; i < listFiles.length; i++)
             {
                 names.add(listFiles[i].toString());
             }
 
-            Kryo kryo = new Kryo();
             Input input = new Input(new FileInputStream("serialization.bin"));
             tileSources = kryo.readObject(input, int[][].class);
             input.close();
@@ -113,9 +119,20 @@ public class MainPane extends JFrame
 
         foundTiles = new int[numRows * numCols];
 
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run()
-            {
+        final MainPane ex = new MainPane();
+        ex.setVisible(true);
+
+        final DCT dct = new DCT(1);
+        final int[][][][] dcts = new int[tileSources.length][][][];
+        for(int i=0; i<tileSources.length; i++)
+        {
+        	System.out.println("DCT " + i);
+        	dcts[i] = dct.forwardDCT(tileSources[i]);
+        }
+        
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+        	public Void doInBackground()
+        	{
                 try
                 {
                     BufferedImage image = ImageIO.read(new FileInputStream("C:\\temp\\mosaicr2\\mosaikorig.jpg"));
@@ -141,21 +158,21 @@ public class MainPane extends JFrame
                             int startX = (int) (col * colWidth);
                             int endX = (int) ((col + 1) * colWidth);
 
-                            for (int x = startX; x < endX; x++)
-                            {
-                                for (int y = startY; y < endY; y++)
-                                {
-                                    int pixel = image.getRGB(x, y);
-                                    avgR[row + col * numRows] += (0xff0000 & pixel) >> 16;
-                                    avgG[row + col * numRows] += (0x00ff00 & pixel) >> 8;
-                                    avgB[row + col * numRows] += (0x0000ff & pixel);
-                                }
-                            }
-
-                            long numPixels = ((endX - startX) * (endY - startY));
-                            avgR[row + col * numRows] = (long) (((float) avgR[row + col * numRows]) / numPixels);
-                            avgG[row + col * numRows] = (long) (((float) avgG[row + col * numRows]) / numPixels);
-                            avgB[row + col * numRows] = (long) (((float) avgB[row + col * numRows]) / numPixels);
+//                            for (int x = startX; x < endX; x++)
+//                            {
+//                                for (int y = startY; y < endY; y++)
+//                                {
+//                                    int pixel = image.getRGB(x, y);
+//                                    avgR[row + col * numRows] += (0xff0000 & pixel) >> 16;
+//                                    avgG[row + col * numRows] += (0x00ff00 & pixel) >> 8;
+//                                    avgB[row + col * numRows] += (0x0000ff & pixel);
+//                                }
+//                            }
+//
+//                            long numPixels = ((endX - startX) * (endY - startY));
+//                            avgR[row + col * numRows] = (long) (((float) avgR[row + col * numRows]) / numPixels);
+//                            avgG[row + col * numRows] = (long) (((float) avgG[row + col * numRows]) / numPixels);
+//                            avgB[row + col * numRows] = (long) (((float) avgB[row + col * numRows]) / numPixels);
 
                             // Create subimage
                             // System.out.println("endx" + endX + " startx " +
@@ -169,7 +186,7 @@ public class MainPane extends JFrame
                                     image.getRGB(startX, startY, endX - startX, endY - startY, (int[]) null, 0, endX - startX), 0, endX
                                             - startX);
                             tile.setData(image.getData(new Rectangle(startX, startY, endX - startX, endY - startY)));
-                            Image scaledInstance = getScaledInstance(tile, 3, 3, RenderingHints.VALUE_INTERPOLATION_BICUBIC, true);
+                            Image scaledInstance = getScaledInstance(tile, 8, 8, RenderingHints.VALUE_INTERPOLATION_BICUBIC, true);
                             // scaledInstance =
                             // getScaledInstance((BufferedImage) scaledInstance,
                             // 300, 300,
@@ -181,10 +198,14 @@ public class MainPane extends JFrame
                             int iDiff = 0;
                             long realError = 0;
                             int result = -1;
-                            int[] srcRGB = ((BufferedImage) scaledInstance).getRGB(0, 0, 3, 3, null, 0, 3);
+                            
+                            int[] srcRGB = ((BufferedImage) scaledInstance).getRGB(0, 0, 8, 8, null, 0, 8);
+                            int[][][] forwardDCT = dct.forwardDCT(srcRGB);
                             for (int i = 0; i < tileSources.length; i++)
                             {
-                                long imageDiff = imageDiff(srcRGB, tileSources[i], error);
+//                            	System.out.println("i " + i);
+//                                long imageDiff = imageDiff(srcRGB, tileSources[i], error);
+                            	long imageDiff = dctDiff(forwardDCT, dcts[i]);
                                 if (Math.abs(imageDiff) < smallestDiff)
                                 {
                                     smallestDiff = Math.abs(imageDiff);
@@ -199,7 +220,7 @@ public class MainPane extends JFrame
                                 foundTiles[images.size() - 1] = result;
 
                                 String pngFilename = names.get(result);
-                                String jpegFilename = pngFilename.substring(0, pngFilename.length() - 4);
+                                String jpegFilename = pngFilename.substring(0, pngFilename.length() - 8);
 
                                 // Set minified tile
                                 // BufferedImage bi = new BufferedImage(3, 3, BufferedImage.TYPE_INT_RGB);
@@ -208,17 +229,44 @@ public class MainPane extends JFrame
                                 //
                                 // bi = getScaledInstance(bi, 6, 6, RenderingHints.VALUE_INTERPOLATION_BICUBIC, false);
 
+                                final JLabel i = icons.get(images.size()-1);
                                 if (tileSourceCache.containsKey(pngFilename))
                                 {
-                                    images.set(images.size() - 1, tileSourceCache.get(names.get(result)));
+                                	BufferedImage bi = tileSourceCache.get(names.get(result));
+                                    final BufferedImage res = getScaledInstance(bi, 22, 22,  RenderingHints.VALUE_INTERPOLATION_BICUBIC, false);
+                                    images.set(images.size() - 1, res);
+                                    SwingUtilities.invokeLater(new Runnable(){
+                                    	public void run()
+                                    	{
+                                            ((ImageIcon)i.getIcon()).setImage(res);
+                                            i.invalidate();
+                                            ex.invalidate();
+                                    	}
+                                    });                                
                                 }
                                 else
                                 {
+//                                	System.out.println(jpegFilename);
                                     BufferedImage bi = ImageIO.read(new FileInputStream(jpegFilename));
-                                    bi = getScaledInstance(bi, 13, 9, RenderingHints.VALUE_INTERPOLATION_BICUBIC, false);
-                                    tileSourceCache.put(pngFilename, bi);
-                                    images.set(images.size() - 1, bi);
+                                    final BufferedImage res = getScaledInstance(bi, 22, 22,  RenderingHints.VALUE_INTERPOLATION_BICUBIC, false);
+                                    tileSourceCache.put(pngFilename, res);
+                                    images.set(images.size() - 1, res);
+                                    
+                                    SwingUtilities.invokeLater(new Runnable(){
+                                    	public void run()
+                                    	{
+                                            ((ImageIcon)i.getIcon()).setImage(res);
+                                            i.invalidate();
+                                            ex.invalidate();
+                                            ex.doLayout();
+                                    	}
+                                    });
+                                    
                                 }
+                            }
+                            else
+                            {
+                            	System.out.println("Did not find!");
                             }
                         }
                     }
@@ -227,16 +275,44 @@ public class MainPane extends JFrame
                 {
                     e.printStackTrace();
                 }
-
-                MainPane ex = new MainPane();
-                ex.setVisible(true);
-
+				return null;
             }
-        });
+        };
+        
+        worker.execute();
+    }
+    
+    public static long dctDiff(int[][][] dct1, int[][][] dct2)
+    {
+    	long diff = 0;
+    	
+    	diff += Math.abs(dct1[0][0][0] - dct2[0][0][0]);
+    	diff += Math.abs(dct1[0][1][0] - dct2[0][1][0]);
+    	diff += Math.abs(dct1[0][0][1] - dct2[0][0][1]);
+//    	diff += Math.abs(dct1[0][0][3] - dct2[0][0][3]);
+//    	diff += Math.abs(dct1[0][0][4] - dct2[0][0][4]);
+
+    	diff += Math.abs(dct1[1][0][0] - dct2[1][0][0]);
+    	diff += Math.abs(dct1[1][1][0] - dct2[1][1][0]);
+    	diff += Math.abs(dct1[1][0][1] - dct2[1][0][1]);
+//    	diff += Math.abs(dct1[1][0][3] - dct2[1][0][3]);
+//    	diff += Math.abs(dct1[1][0][4] - dct2[1][0][4]);
+
+    	diff += Math.abs(dct1[2][0][0] - dct2[2][0][0]);
+    	diff += Math.abs(dct1[2][1][0] - dct2[2][1][0]);
+    	diff += Math.abs(dct1[2][0][1] - dct2[2][0][1]);
+//    	diff += Math.abs(dct1[2][0][3] - dct2[2][0][3]);
+//    	diff += Math.abs(dct1[2][0][4] - dct2[2][0][4]);
+
+    	
+    	return diff;
     }
 
     public static long imageDiff(int[] one, int[] two, int error)
     {
+//    	DCT dct = new DCT(1);
+//    	int[][] forwardDCT = dct.forwardDCT(one, 0);
+    	
         float sum = 0;
         for (int pixel = 0; pixel < 9; pixel++)
         {
@@ -248,14 +324,14 @@ public class MainPane extends JFrame
             int searchPixelG = (two[pixel] & 0xff00) >> 8;
             int searchPixelB = two[pixel] & 0xff;
 
-            float diff = (float) Math.pow(midPixelR - searchPixelR, 1.1);
+            long diff = (midPixelR - searchPixelR) * (midPixelR - searchPixelR);
             // if (diff < 0)
             // {
             // diff = -diff;
             // }
             // if (midPixelG > searchPixelG)
             // {
-            diff += Math.pow(midPixelG - searchPixelG, 1.1);
+            diff += (midPixelG - searchPixelG) * (midPixelG - searchPixelG);
             // }
             // else
             // {
@@ -263,7 +339,7 @@ public class MainPane extends JFrame
             // }
             // if (midPixelB > searchPixelB)
             // {
-            diff += Math.pow(midPixelB - searchPixelB, 1.1);
+            diff += (midPixelB - searchPixelB) * (midPixelB - searchPixelB);
             // }
             // else
             // {
